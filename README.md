@@ -327,39 +327,62 @@ These are used by the chatbot app to save/load conversation history.
 ```mermaid
 flowchart TD
 
-%% =======================
-%% DATA INGESTION PIPELINE
-%% =======================
+%% ================
+%% INGESTION PATH
+%% ================
 
-A1[data/*.txt<br/>Raw Documents] --> A2[Ingestion Script<br/><code>backend/ingest.py</code>]
+subgraph INGESTION["Ingestion Pipeline"]
+    A1["📂 TXT Files<br/>data/*.txt"]
+    A2["📥 Ingestion Script<br/><code>backend/ingest.py</code>"]
+    A3["✂️ Chunking<br/>Recursive Text Splitter"]
+    A4["🧮 Embeddings<br/>OpenAI <code>text-embedding-3-small</code>"]
+    A5[("🗄️ Qdrant Vector DB<br/><code>documents</code> collection")]
 
-A2 --> A3[Chunking<br/>RecursiveCharacterTextSplitter]
-A3 --> A4[Embeddings<br/>OpenAI <em>text-embedding-3-small</em>]
+    A1 --> A2 --> A3 --> A4 --> A5
+end
 
-A4 --> A5[Qdrant Vector DB<br/><code>documents</code> collection]
-
-%% =======================
+%% ================
 %% CHATBOT PIPELINE
-%% =======================
+%% ================
 
-B1[Chatbot UI<br/><code>apps/chatbot_app.py</code>] --> B2[User Query]
-B2 --> B3[Embed Query<br/>OpenAI Embeddings]
-B3 --> A5
+subgraph CHATBOT["Chatbot Pipeline (apps/chatbot_app.py)"]
+    B1["💬 User"]
+    B2["📝 User Question"]
+    B3["🧮 Query Embedding<br/>OpenAI Embeddings"]
+    B4["🔎 Retrieve Top-k Chunks"]
+    B5["🧱 Build RAG Prompt<br/>Context + History + Query"]
+    B6["🤖 OpenAI Chat Model<br/><code>gpt-4o-mini</code>"]
+    B7["💡 Final Answer"]
+end
 
-A5 --> B4[Retrieve Top-k Chunks]
+%% ================
+%% SUPPORTING SYSTEMS
+%% ================
 
-B4 --> B5[Build RAG Prompt<br/>Context + History + Query]
+subgraph STORAGE["Storage + Observability"]
+    C1[("🗃️ PostgreSQL<br/>Conversation History")]
+    C2[("📊 Langfuse v2<br/>Tracing & Analytics")]
+end
 
-B5 --> B6[OpenAI Chat Model<br/><em>gpt-4o-mini</em>]
+%% ================
+%% FLOWS
+%% ================
 
-B6 --> B7[Response to User]
+%% User → Chatbot
+B1 --> B2 --> B3
 
-%% =======================
-%% STORAGE + OBSERVABILITY
-%% =======================
+%% Embedding ↔ Qdrant
+B3 <-.-> |"vector search"| A5
 
-B6 --> C1[PostgreSQL<br/>Conversation History]
-B6 --> C2[Langfuse v2<br/>Tracing & Analytics]
+%% Qdrant → retrieved chunks
+A5 --> B4
+
+%% Retrieval → Prompt → LLM
+B4 --> B5 --> B6 --> B7
+
+%% LLM Output saved + traced
+B6 --> C1
+B6 --> C2
 
 ```
 
