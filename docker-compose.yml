@@ -7,7 +7,7 @@ services:
     ports:
       - "6333:6333"
     volumes:
-      - ./qdrant_data:/qdrant/storage
+      - qdrant_data:/qdrant/storage       # 🔄 Named volume
     environment:
       QDRANT__SERVICE__GRPC_PORT: 6334
 
@@ -21,7 +21,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - ./pg_data:/var/lib/postgresql/data
+      - pg_data:/var/lib/postgresql/data  # 🔄 Named volume
 
   langfuse:
     image: langfuse/langfuse:2
@@ -36,30 +36,30 @@ services:
     ports:
       - "3000:3000"
 
-  index-manager:
-    build:
-      context: .
-      dockerfile: apps/Dockerfile.index_manager
-    container_name: index-manager
-    env_file:
-      - .env
-    environment:
-      QDRANT_HOST: qdrant
-      QDRANT_PORT: 6333
-      PG_HOST: postgres
-      PG_PORT: 5432
-      PG_USER: appuser
-      PG_PASSWORD: apppass
-      PG_DB: appdb
-      LANGFUSE_HOST: http://langfuse:3000
-    ports:
-      - "8501:8501"
-    volumes:
-      - ./data:/app/data          # ✅ Correct volume mount
-    depends_on:
-      - qdrant
-      - postgres
-      - langfuse
+#  index-manager:
+#    build:
+#      context: .
+#      dockerfile: apps/Dockerfile.index_manager
+#    container_name: index-manager
+#    env_file:
+#      - .env
+#    environment:
+#      QDRANT_HOST: qdrant
+#      QDRANT_PORT: 6333
+#      PG_HOST: postgres
+#      PG_PORT: 5432
+#      PG_USER: appuser
+#      PG_PASSWORD: apppass
+#      PG_DB: appdb
+#      LANGFUSE_HOST: http://langfuse:3000
+#    ports:
+#      - "8501:8501"
+#    volumes:
+#      - ./data:/app/data                  # ✅ Keep local folder
+#    depends_on:
+#      - qdrant
+#      - postgres
+#      - langfuse
 
   chatbot:
     build:
@@ -83,3 +83,7 @@ services:
       - qdrant
       - postgres
       - langfuse
+
+volumes:
+  qdrant_data:
+  pg_data:

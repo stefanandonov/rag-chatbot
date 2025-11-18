@@ -71,6 +71,8 @@ def ensure_collection(dim: int):
 def main():
     txt_paths = glob(os.path.join(DATA_DIR, "*.txt"))
 
+    txt_paths.sort()
+
     if not txt_paths:
         print("⚠️ No TXT files found in `/data` directory.")
         return
@@ -78,8 +80,8 @@ def main():
     print(f"📄 Found {len(txt_paths)} TXT files.")
 
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size=800,
-        chunk_overlap=200,
+        chunk_size=400,
+        chunk_overlap=100,
     )
 
     all_chunks = []
@@ -88,7 +90,8 @@ def main():
     # Load + Chunk with tqdm
     # ---------------------------
     print("\n📥 Loading + chunking TXT files...")
-    for file_path in tqdm(txt_paths, desc="Chunking files", unit="file"):
+    print(txt_paths[:50])
+    for file_path in tqdm(txt_paths[:50], desc="Chunking files", unit="file"):
         text = load_text_file(file_path)
 
         chunks = splitter.split_text(text)
