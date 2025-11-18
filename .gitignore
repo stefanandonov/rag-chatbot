@@ -1,0 +1,9 @@
+.venv
+.idea
+pg_data
+qdrant_data
+*.parquet
+__pycache__/
+*.csv
+.env
+get_data.py

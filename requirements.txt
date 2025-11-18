@@ -1,0 +1,13 @@
+streamlit
+qdrant-client
+openai
+langchain
+langchain-community
+langchain-text-splitters
+tiktoken
+pypdf
+psycopg2-binary
+langfuse==2.41.0
+python-dotenv
+sqlmodel
+sqlalchemy
