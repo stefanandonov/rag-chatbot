@@ -325,22 +325,42 @@ These are used by the chatbot app to save/load conversation history.
 ## 🧱 High‑Level Architecture
 
 ```mermaid
-flowchart LR
-    A[TXT Files in data/] --> B[Ingestion Script (backend/ingest.py)]
-    B --> C[Chunks + Embeddings]
-    C --> D[Qdrant (Vector DB)]
+flowchart TD
 
-    F[Chatbot UI] --> G[User Question]
-    G --> H[Embed Query (OpenAI)]
-    H --> D
-    D --> I[Top-k Chunks]
-    I --> J[Build RAG Prompt]
-    J --> K[OpenAI Chat Model]
-    K --> L[PostgreSQL (Messages)]
-    K --> M[Langfuse (Trace + Generation)]
-    F --> K
+%% =======================
+%% DATA INGESTION PIPELINE
+%% =======================
 
-    E[Index Manager UI] --> B
+A1[data/*.txt<br/>Raw Documents] --> A2[Ingestion Script<br/><code>backend/ingest.py</code>]
+
+A2 --> A3[Chunking<br/>RecursiveCharacterTextSplitter]
+A3 --> A4[Embeddings<br/>OpenAI <em>text-embedding-3-small</em>]
+
+A4 --> A5[Qdrant Vector DB<br/><code>documents</code> collection]
+
+%% =======================
+%% CHATBOT PIPELINE
+%% =======================
+
+B1[Chatbot UI<br/><code>apps/chatbot_app.py</code>] --> B2[User Query]
+B2 --> B3[Embed Query<br/>OpenAI Embeddings]
+B3 --> A5
+
+A5 --> B4[Retrieve Top-k Chunks]
+
+B4 --> B5[Build RAG Prompt<br/>Context + History + Query]
+
+B5 --> B6[OpenAI Chat Model<br/><em>gpt-4o-mini</em>]
+
+B6 --> B7[Response to User]
+
+%% =======================
+%% STORAGE + OBSERVABILITY
+%% =======================
+
+B6 --> C1[PostgreSQL<br/>Conversation History]
+B6 --> C2[Langfuse v2<br/>Tracing & Analytics]
+
 ```
 
 ---
