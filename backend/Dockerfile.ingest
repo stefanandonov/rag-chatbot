@@ -1,0 +1,20 @@
+FROM python:3.11-slim
+
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+# Install minimal deps (curl used in health checks if needed)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements from ROOT of the project
+COPY requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy backend folder ONLY
+COPY backend /app/backend
+
+# ingest.py will expect /app/data exists -> will be mounted at runtime
+CMD ["python", "-u", "backend/ingest.py"]

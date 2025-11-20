@@ -1,9 +1,11 @@
 import os
+import time
 from glob import glob
 from uuid import uuid4
 from typing import List
 
-from tqdm import tqdm                               # ✅ NEW
+import requests
+from tqdm import tqdm  # ✅ NEW
 
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
@@ -21,7 +23,7 @@ from openai import OpenAI
 # -----------------------------
 DATA_DIR = os.getenv("DATA_DIR", "data")
 
-QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
+QDRANT_HOST = os.getenv("QDRANT_HOST", "qdrant")
 QDRANT_PORT = int(os.getenv("QDRANT_PORT", "6333"))
 COLLECTION_NAME = os.getenv("QDRANT_COLLECTION", "documents")
 
@@ -29,6 +31,37 @@ EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 qdrant = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
+
+
+def wait_for_qdrant(
+    timeout: int = 120,
+    sleep: int = 3,
+):
+    """Wait until Qdrant is ready by checking /collections endpoint."""
+    url = f"http://{QDRANT_HOST}:{QDRANT_PORT}/collections"
+    start_time = time.time()
+
+    print(f"🔄 Waiting for Qdrant at {url} ...")
+
+    while True:
+        try:
+            response = requests.get(url, timeout=2)
+            if response.status_code == 200:
+                print("✅ Qdrant is READY!")
+                return
+            else:
+                print(
+                    f"⚠️ Qdrant responded with status {response.status_code}, retrying..."
+                )
+        except requests.exceptions.ConnectionError:
+            print("⏳ Qdrant not reachable yet...")
+        except Exception as e:
+            print(f"⚠️ Error checking Qdrant readiness: {e}")
+
+        if time.time() - start_time > timeout:
+            raise TimeoutError("❌ Qdrant did not become ready in time")
+
+        time.sleep(sleep)
 
 
 # -----------------------------
@@ -58,10 +91,7 @@ def ensure_collection(dim: int):
         print("🆕 Creating Qdrant collection...")
         qdrant.create_collection(
             collection_name=COLLECTION_NAME,
-            vectors_config=VectorParams(
-                size=dim,
-                distance=Distance.COSINE
-            ),
+            vectors_config=VectorParams(size=dim, distance=Distance.COSINE),
         )
 
 
@@ -69,6 +99,8 @@ def ensure_collection(dim: int):
 # Main ingestion function
 # -----------------------------
 def main():
+
+    wait_for_qdrant()
     txt_paths = glob(os.path.join(DATA_DIR, "*.txt"))
 
     txt_paths.sort()
@@ -97,11 +129,13 @@ def main():
         chunks = splitter.split_text(text)
 
         for i, chunk in enumerate(chunks):
-            all_chunks.append({
-                "text": chunk,
-                "source": os.path.basename(file_path),
-                "chunk_idx": i,
-            })
+            all_chunks.append(
+                {
+                    "text": chunk,
+                    "source": os.path.basename(file_path),
+                    "chunk_idx": i,
+                }
+            )
 
     print(f"\n🧩 Total text chunks extracted: {len(all_chunks)}")
 
@@ -115,7 +149,7 @@ def main():
     vectors = []
     batch_size = 256  # adjustable
     for i in tqdm(range(0, len(texts), batch_size), desc="Embedding batches"):
-        batch = texts[i:i + batch_size]
+        batch = texts[i : i + batch_size]
         vectors.extend(embed_batch(batch))
 
     dim = len(vectors[0])
@@ -126,7 +160,9 @@ def main():
     # ---------------------------
     print("\n📦 Preparing Qdrant points...")
     points = []
-    for vector, payload in tqdm(zip(vectors, all_chunks), total=len(all_chunks), desc="Building points"):
+    for vector, payload in tqdm(
+        zip(vectors, all_chunks), total=len(all_chunks), desc="Building points"
+    ):
         points.append(
             PointStruct(
                 id=str(uuid4()),
@@ -143,13 +179,15 @@ def main():
     # If number of points is huge, upload in chunks with tqdm
     upload_batch = 500
     for i in tqdm(range(0, len(points), upload_batch), desc="Uploading batches"):
-        batch = points[i:i + upload_batch]
+        batch = points[i : i + upload_batch]
         qdrant.upsert(
             collection_name=COLLECTION_NAME,
             points=batch,
         )
 
-    print(f"\n✅ Finished ingesting {len(points)} text chunks into Qdrant collection `{COLLECTION_NAME}`.")
+    print(
+        f"\n✅ Finished ingesting {len(points)} text chunks into Qdrant collection `{COLLECTION_NAME}`."
+    )
 
 
 if __name__ == "__main__":
